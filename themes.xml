@@ -1,0 +1,63 @@
+package com.securevault.data.repository
+
+import com.securevault.data.db.VaultDao
+import com.securevault.data.model.VaultEntry
+import com.securevault.security.CryptoManager
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+import javax.inject.Singleton
+
+data class DecryptedEntry(
+    val id: Long, val title: String, val category: String,
+    val username: String, val password: String,
+    val url: String, val notes: String,
+    val createdAt: Long, val updatedAt: Long, val isFavorite: Boolean
+)
+
+@Singleton
+class VaultRepository @Inject constructor(
+    private val dao: VaultDao,
+    private val crypto: CryptoManager
+) {
+    fun getAllEntries(): Flow<List<DecryptedEntry>> =
+        dao.getAllEntries().map { it.map(::decrypt) }
+
+    fun searchEntries(q: String): Flow<List<DecryptedEntry>> =
+        dao.searchEntries(q).map { it.map(::decrypt) }
+
+    fun getCategories(): Flow<List<String>> = dao.getCategories()
+    fun getCount(): Flow<Int> = dao.getCount()
+
+    suspend fun getById(id: Long): DecryptedEntry? = dao.getById(id)?.let(::decrypt)
+
+    suspend fun save(
+        id: Long = 0, title: String, category: String,
+        username: String, password: String, url: String = "",
+        notes: String = "", isFavorite: Boolean = false
+    ): Long = dao.insert(
+        VaultEntry(
+            id = id, title = title, category = category,
+            encryptedUsername = crypto.encryptString(username),
+            encryptedPassword = crypto.encryptString(password),
+            encryptedUrl = if (url.isNotEmpty()) crypto.encryptString(url) else "",
+            encryptedNotes = if (notes.isNotEmpty()) crypto.encryptString(notes) else "",
+            updatedAt = System.currentTimeMillis(), isFavorite = isFavorite
+        )
+    )
+
+    suspend fun toggleFavorite(entry: DecryptedEntry) {
+        dao.getById(entry.id)?.let { dao.update(it.copy(isFavorite = !it.isFavorite)) }
+    }
+
+    suspend fun delete(id: Long) = dao.deleteById(id)
+
+    private fun decrypt(e: VaultEntry) = DecryptedEntry(
+        id = e.id, title = e.title, category = e.category,
+        username = e.encryptedUsername.ifEmpty { "" }.let { if (it.isEmpty()) "" else crypto.decryptString(it) },
+        password = e.encryptedPassword.ifEmpty { "" }.let { if (it.isEmpty()) "" else crypto.decryptString(it) },
+        url = e.encryptedUrl.ifEmpty { "" }.let { if (it.isEmpty()) "" else crypto.decryptString(it) },
+        notes = e.encryptedNotes.ifEmpty { "" }.let { if (it.isEmpty()) "" else crypto.decryptString(it) },
+        createdAt = e.createdAt, updatedAt = e.updatedAt, isFavorite = e.isFavorite
+    )
+}

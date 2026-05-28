@@ -1,0 +1,3 @@
+-keep class com.securevault.** { *; }
+-keep class de.mkammerer.argon2.** { *; }
+-keepattributes *Annotation*

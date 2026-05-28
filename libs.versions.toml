@@ -1,0 +1,37 @@
+package com.securevault.ui
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.securevault.ui.screens.*
+
+@Composable
+fun SecureVaultNavHost() {
+    val nav = rememberNavController()
+
+    NavHost(nav, startDestination = "lock") {
+        composable("lock") {
+            LockScreen(
+                onUnlocked = { nav.navigate("vault") { popUpTo("lock") { inclusive = true } } },
+                onBiometricRequest = {}
+            )
+        }
+        composable("vault") {
+            VaultListScreen(
+                onAdd = { nav.navigate("entry") },
+                onEdit = { id -> nav.navigate("entry?id=$id") },
+                onLock = { nav.navigate("lock") { popUpTo("vault") { inclusive = true } } }
+            )
+        }
+        composable(
+            "entry?id={id}",
+            arguments = listOf(navArgument("id") { type = NavType.LongType; defaultValue = -1L })
+        ) { back ->
+            val rawId = back.arguments?.getLong("id") ?: -1L
+            EntryEditScreen(entryId = if (rawId == -1L) null else rawId, onBack = { nav.popBackStack() })
+        }
+    }
+}
